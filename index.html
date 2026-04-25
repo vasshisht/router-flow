@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RouteFlow — Traffic Routing Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+  --bg: #f4f3ef;
+  --surface: #ffffff;
+  --surface2: #f1efe8;
+  --text: #2c2c2a;
+  --muted: #5f5e5a;
+  --hint: #888780;
+  --border: rgba(44,44,42,0.12);
+  --border2: rgba(44,44,42,0.25);
+  --green: #1D9E75;
+  --green-bg: #E1F5EE;
+  --green-text: #085041;
+  --amber: #BA7517;
+  --amber-bg: #FAEEDA;
+  --amber-text: #412402;
+  --red: #A32D2D;
+  --red-bg: #FCEBEB;
+  --red-text: #501313;
+  --blue: #185FA5;
+  --blue-bg: #E6F1FB;
+  --blue-text: #042C53;
+  --rad: 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1a18;
+    --surface: #252523;
+    --surface2: #2c2c2a;
+    --text: #e8e6dc;
+    --muted: #9c9a92;
+    --hint: #6a6860;
+    --border: rgba(232,230,220,0.1);
+    --border2: rgba(232,230,220,0.2);
+    --green-bg: #04342c;
+    --green-text: #9fe1cb;
+    --amber-bg: #412402;
+    --amber-text: #fac775;
+    --red-bg: #501313;
+    --red-text: #f7c1c1;
+    --blue-bg: #042c53;
+    --blue-text: #b5d4f4;
+  }
+}
+
+html, body { height: 100%; }
+body { font-family: var(--sans); background: var(--bg); color: var(--text); font-size: 13px; display: flex; flex-direction: column; }
+
+.header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: var(--surface); border-bottom: 0.5px solid var(--border2); flex-shrink: 0; }
+.header-left { display: flex; align-items: center; gap: 12px; }
+.logo { font-family: var(--mono); font-size: 13px; font-weight: 600; letter-spacing: 0.05em; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 2px var(--green-bg); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+.badge { font-family: var(--mono); font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 3px; letter-spacing: 0.04em; }
+.badge-green { background: var(--green-bg); color: var(--green-text); }
+.badge-amber { background: var(--amber-bg); color: var(--amber-text); }
+.badge-red { background: var(--red-bg); color: var(--red-text); }
+.badge-blue { background: var(--blue-bg); color: var(--blue-text); }
+
+.metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--surface); border-bottom: 0.5px solid var(--border2); flex-shrink: 0; }
+.metric-card { padding: 12px 16px; border-right: 0.5px solid var(--border); }
+.metric-card:last-child { border-right: none; }
+.metric-label { font-family: var(--mono); font-size: 9px; font-weight: 500; color: var(--hint); letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 4px; }
+.metric-val { font-family: var(--mono); font-size: 20px; font-weight: 600; color: var(--text); line-height: 1; }
+.metric-sub { font-family: var(--mono); font-size: 10px; color: var(--hint); margin-top: 3px; }
+
+.main { display: grid; grid-template-columns: 280px 1fr 260px; flex: 1; overflow: hidden; }
+.panel { border-right: 0.5px solid var(--border); overflow-y: auto; background: var(--surface); }
+.panel-header { padding: 10px 14px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--surface); z-index: 10; }
+.panel-title { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; }
+
+.route-item { padding: 10px 14px; border-bottom: 0.5px solid var(--border); cursor: pointer; transition: background 0.1s; display: flex; flex-direction: column; gap: 5px; }
+.route-item:hover { background: var(--surface2); }
+.route-item.selected { background: var(--blue-bg); border-left: 2px solid var(--blue); }
+.route-name { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--text); }
+.route-path { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.route-stats { display: flex; gap: 8px; align-items: center; margin-top: 2px; }
+.stat-mini { font-family: var(--mono); font-size: 10px; color: var(--hint); }
+.method-tag { font-family: var(--mono); font-size: 9px; font-weight: 600; padding: 1px 5px; border-radius: 2px; }
+.method-get { background: var(--green-bg); color: var(--green-text); }
+.method-post { background: var(--blue-bg); color: var(--blue-text); }
+.method-put { background: var(--amber-bg); color: var(--amber-text); }
+.method-del { background: var(--red-bg); color: var(--red-text); }
+
+.center-panel { background: var(--bg); overflow-y: auto; display: flex; flex-direction: column; }
+.topo-title { font-family: var(--mono); font-size: 10px; font-weight: 500; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 16px; }
+.topology-canvas { padding: 20px; }
+svg.topo { width: 100%; }
+
+.config-section { background: var(--surface); border-top: 0.5px solid var(--border2); border-bottom: 0.5px solid var(--border2); }
+.config-row { display: grid; grid-template-columns: 1fr 1fr; }
+.config-col { padding: 16px 20px; border-right: 0.5px solid var(--border); }
+.config-col:last-child { border-right: none; }
+.config-label { font-family: var(--mono); font-size: 10px; font-weight: 500; color: var(--muted); letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 10px; }
+
+.rule-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 0.5px solid var(--border); }
+.rule-row:last-child { border-bottom: none; }
+.rule-key { font-family: var(--mono); font-size: 11px; color: var(--muted); flex: 0 0 120px; }
+.rule-val { font-family: var(--mono); font-size: 11px; color: var(--text); flex: 1; }
+.rule-toggle { width: 28px; height: 16px; border-radius: 8px; border: none; cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0; }
+.rule-toggle.on { background: var(--green); }
+.rule-toggle.off { background: var(--border2); }
+.rule-toggle::after { content:''; position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:#fff; transition: transform 0.2s; }
+.rule-toggle.on::after { transform: translateX(12px); }
+
+.slider-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.slider-label { font-family: var(--mono); font-size: 11px; color: var(--muted); flex: 0 0 110px; }
+.slider-val { font-family: var(--mono); font-size: 11px; color: var(--text); min-width: 40px; text-align: right; }
+input[type=range] { flex: 1; height: 3px; accent-color: var(--blue); }
+
+.algo-selector { display: flex; align-items: center; gap: 10px; padding: 14px 20px; background: var(--surface); border-bottom: 0.5px solid var(--border2); flex-wrap: wrap; }
+.algo-label { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; white-space: nowrap; }
+.algo-btn { font-family: var(--mono); font-size: 11px; padding: 4px 12px; border: 0.5px solid var(--border2); background: var(--surface2); color: var(--muted); cursor: pointer; border-radius: var(--rad); transition: all 0.15s; white-space: nowrap; }
+.algo-btn.active { background: var(--blue-bg); border-color: var(--blue); color: var(--blue-text); }
+.algo-btn:hover:not(.active) { background: var(--surface); color: var(--text); }
+
+.backend-item { padding: 10px 14px; border-bottom: 0.5px solid var(--border); }
+.backend-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.backend-name { font-family: var(--mono); font-size: 11px; font-weight: 500; }
+.backend-addr { font-family: var(--mono); font-size: 10px; color: var(--hint); margin-top: 1px; }
+.progress-bar { height: 3px; background: var(--border2); border-radius: 2px; overflow: hidden; margin: 4px 0 2px; }
+.progress-fill { height: 100%; border-radius: 2px; transition: width 1.5s ease; }
+.fill-green { background: var(--green); }
+.fill-amber { background: var(--amber); }
+.fill-red { background: var(--red); }
+.backend-metrics { display: flex; gap: 12px; margin-top: 4px; flex-wrap: wrap; }
+.bm { font-family: var(--mono); font-size: 10px; color: var(--hint); }
+.bm strong { color: var(--text); }
+
+.log-entry { padding: 5px 14px; border-bottom: 0.5px solid var(--border); font-family: var(--mono); font-size: 10px; display: flex; gap: 8px; align-items: flex-start; }
+.log-time { color: var(--hint); flex-shrink: 0; }
+.log-path { color: var(--muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s200,.s201 { color: var(--green); }
+.s304 { color: var(--blue); }
+.s429 { color: var(--amber); }
+.s500,.s503 { color: var(--red); }
+
+.add-btn { font-family: var(--mono); font-size: 10px; padding: 3px 8px; border: 0.5px solid var(--border2); background: var(--surface2); color: var(--muted); cursor: pointer; border-radius: var(--rad); }
+.add-btn:hover { background: var(--surface); color: var(--text); }
+
+.section-header { padding: 10px 14px; border-bottom: 0.5px solid var(--border); background: var(--surface); }
+.section-label { font-family: var(--mono); font-size: 10px; font-weight: 500; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="status-dot"></div>
+    <span class="logo">ROUTEFLOW / v2.4</span>
+    <span class="badge badge-green">LIVE</span>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span class="badge badge-blue" id="rps-badge">1,247 req/s</span>
+    <span class="badge badge-green">P99 &lt; 45ms</span>
+    <span style="font-family:var(--mono);font-size:10px;color:var(--hint)" id="clock">—</span>
+  </div>
+</div>
+
+<div class="metrics-row">
+  <div class="metric-card">
+    <div class="metric-label">Total Req/s</div>
+    <div class="metric-val" id="m-rps">1,247</div>
+    <div class="metric-sub" style="color:var(--green)">▲ 12.4%</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Error Rate</div>
+    <div class="metric-val" id="m-err">0.31%</div>
+    <div class="metric-sub" style="color:var(--green)">▼ 0.04pp</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Avg Latency</div>
+    <div class="metric-val" id="m-lat">18ms</div>
+    <div class="metric-sub">P95: 38ms</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Active Conns</div>
+    <div class="metric-val" id="m-conn">3,814</div>
+    <div class="metric-sub">82% of cap</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- LEFT: Routes -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Routes</span>
+      <button class="add-btn" onclick="addRoute()">+ Add</button>
+    </div>
+    <div id="routes-list"></div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="center-panel">
+    <div class="algo-selector">
+      <span class="algo-label">Algorithm:</span>
+      <button class="algo-btn active" onclick="setAlgo(this,'Round Robin')">Round Robin</button>
+      <button class="algo-btn" onclick="setAlgo(this,'Least Conn')">Least Conn</button>
+      <button class="algo-btn" onclick="setAlgo(this,'IP Hash')">IP Hash</button>
+      <button class="algo-btn" onclick="setAlgo(this,'Weighted')">Weighted</button>
+      <button class="algo-btn" onclick="setAlgo(this,'Random')">Random</button>
+    </div>
+
+    <div class="topology-canvas">
+      <div class="topo-title">Traffic topology — <span id="algo-label">Round Robin</span></div>
+      <svg class="topo" viewBox="0 0 560 280">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+        </defs>
+        <rect x="10" y="115" width="80" height="50" rx="6" fill="var(--surface2)" stroke="var(--border2)" stroke-width="0.5"/>
+        <text x="50" y="136" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="var(--muted)" font-weight="500">CLIENTS</text>
+        <text x="50" y="153" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="var(--text)" font-weight="600" id="topo-rps">1,247/s</text>
+        <rect x="140" y="108" width="100" height="64" rx="6" fill="var(--blue-bg)" stroke="var(--blue)" stroke-width="1"/>
+        <text x="190" y="130" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="var(--blue-text)" font-weight="500">LOAD BALANCER</text>
+        <text x="190" y="148" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="var(--blue)" font-weight="600" id="topo-algo">ROUND ROBIN</text>
+        <text x="190" y="164" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="var(--blue-text)">3 backends</text>
+        <line x1="90" y1="140" x2="140" y2="140" stroke="var(--blue)" stroke-width="1" marker-end="url(#arr)" opacity="0.7"/>
+        <g id="topo-backends"></g>
+      </svg>
+    </div>
+
+    <div class="config-section">
+      <div class="config-row">
+        <div class="config-col">
+          <div class="config-label">Routing Rules</div>
+          <div class="rule-row">
+            <span class="rule-key">Health Check</span>
+            <span class="rule-val">/health · 5s</span>
+            <button class="rule-toggle on" onclick="toggleBtn(this)"></button>
+          </div>
+          <div class="rule-row">
+            <span class="rule-key">Rate Limit</span>
+            <span class="rule-val">2000 req/min</span>
+            <button class="rule-toggle on" onclick="toggleBtn(this)"></button>
+          </div>
+          <div class="rule-row">
+            <span class="rule-key">Circuit Breaker</span>
+            <span class="rule-val">5% err · 10s</span>
+            <button class="rule-toggle on" onclick="toggleBtn(this)"></button>
+          </div>
+          <div class="rule-row">
+            <span class="rule-key">Retries</span>
+            <span class="rule-val">3 attempts</span>
+            <button class="rule-toggle off" onclick="toggleBtn(this)"></button>
+          </div>
+          <div class="rule-row">
+            <span class="rule-key">Sticky Sessions</span>
+            <span class="rule-val">disabled</span>
+            <button class="rule-toggle off" onclick="toggleBtn(this)"></button>
+          </div>
+        </div>
+        <div class="config-col">
+          <div class="config-label">Timeouts & Limits</div>
+          <div class="slider-row">
+            <span class="slider-label">Timeout (ms)</span>
+            <input type="range" min="100" max="5000" value="1500" oninput="document.getElementById('sv-to').textContent=this.value+'ms'">
+            <span class="slider-val" id="sv-to">1500ms</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Max Conns</span>
+            <input type="range" min="100" max="10000" value="5000" step="100" oninput="document.getElementById('sv-mc').textContent=this.value">
+            <span class="slider-val" id="sv-mc">5000</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Rate Limit</span>
+            <input type="range" min="100" max="5000" value="2000" step="100" oninput="document.getElementById('sv-rl').textContent=this.value+'/m'">
+            <span class="slider-val" id="sv-rl">2000/m</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Error Threshold</span>
+            <input type="range" min="1" max="20" value="5" oninput="document.getElementById('sv-et').textContent=this.value+'%'">
+            <span class="slider-val" id="sv-et">5%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-header" style="margin-top:1px">
+      <span class="section-label">Live Request Log</span>
+    </div>
+    <div id="log-list" style="background:var(--surface)"></div>
+  </div>
+
+  <!-- RIGHT: Backends -->
+  <div class="panel" style="border-right:none">
+    <div class="panel-header">
+      <span class="panel-title">Backend Pool</span>
+      <button class="add-btn" onclick="addBackend()">+ Add</button>
+    </div>
+    <div id="backends-list"></div>
+    <div class="panel-header">
+      <span class="panel-title">Header Rules</span>
+    </div>
+    <div style="padding:10px 14px;">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px">Request headers injected:</div>
+      <div id="headers-list"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const routes = [
+  { name:'api-gateway',  path:'/api/v1/*',     method:'GET',    rps:420, lat:12,  status:'healthy' },
+  { name:'auth-service', path:'/auth/*',        method:'POST',   rps:85,  lat:28,  status:'healthy' },
+  { name:'user-crud',    path:'/users/*',       method:'PUT',    rps:64,  lat:15,  status:'healthy' },
+  { name:'media-upload', path:'/media/upload',  method:'POST',   rps:33,  lat:140, status:'degraded' },
+  { name:'search-svc',   path:'/search*',       method:'GET',    rps:210, lat:22,  status:'healthy' },
+  { name:'payments',     path:'/pay/*',         method:'POST',   rps:18,  lat:55,  status:'healthy' },
+  { name:'webhooks',     path:'/hooks/*',       method:'POST',   rps:44,  lat:8,   status:'healthy' },
+  { name:'admin-api',    path:'/admin/*',       method:'DELETE', rps:3,   lat:9,   status:'healthy' },
+];
+
+const backends = [
+  { name:'backend-01', addr:'10.0.1.10:8080', load:62, lat:14, conns:982,  status:'up',   weight:1 },
+  { name:'backend-02', addr:'10.0.1.11:8080', load:78, lat:22, conns:1240, status:'up',   weight:1 },
+  { name:'backend-03', addr:'10.0.1.12:8080', load:31, lat:11, conns:492,  status:'up',   weight:2 },
+  { name:'backend-04', addr:'10.0.1.13:8080', load:0,  lat:0,  conns:0,    status:'down', weight:0 },
+];
+
+const headers = [
+  { key:'X-Request-ID',    val:'uuid()' },
+  { key:'X-Forwarded-For', val:'client-ip' },
+  { key:'X-Upstream',      val:'routeflow/2.4' },
+  { key:'X-Trace-ID',      val:'trace-ctx' },
+];
+
+const logPaths   = ['/api/v1/users','/api/v1/posts','/auth/login','/search?q=shoes','/users/42','/pay/checkout','/hooks/stripe','/media/upload','/admin/config'];
+const logMethods = ['GET','GET','POST','GET','PUT','POST','POST','POST','DELETE'];
+const logStatuses= [200,200,200,201,200,304,200,429,500,200,200];
+
+let selectedRoute = 0;
+let logEntries = [];
+
+function pad2(n){ return n<10?'0'+n:''+n; }
+
+function clock(){
+  const d = new Date();
+  document.getElementById('clock').textContent = pad2(d.getHours())+':'+pad2(d.getMinutes())+':'+pad2(d.getSeconds())+' UTC';
+}
+setInterval(clock, 1000); clock();
+
+function renderRoutes(){
+  const list = document.getElementById('routes-list');
+  list.innerHTML = routes.map((r,i)=>{
+    const st  = r.status==='healthy' ? 'badge-green' : 'badge-amber';
+    const m   = r.method.toLowerCase();
+    const mcls= m==='get'?'method-get':m==='post'?'method-post':m==='put'?'method-put':'method-del';
+    return `<div class="route-item${i===selectedRoute?' selected':''}" onclick="selectRoute(${i})">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+        <span class="route-name">${r.name}</span>
+        <span class="badge ${st}" style="font-size:9px">${r.status}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="method-tag ${mcls}">${r.method}</span>
+        <span class="route-path">${r.path}</span>
+      </div>
+      <div class="route-stats">
+        <span class="stat-mini">${r.rps} req/s</span>
+        <span class="stat-mini" style="color:var(--border2)">·</span>
+        <span class="stat-mini">P50 ${r.lat}ms</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selectRoute(i){ selectedRoute=i; renderRoutes(); }
+
+function renderBackends(){
+  const list = document.getElementById('backends-list');
+  list.innerHTML = backends.map(b=>{
+    const cls  = b.status==='down'?'badge-red':b.load>70?'badge-amber':'badge-green';
+    const fcls = b.load>70?'fill-amber':b.load>0?'fill-green':'fill-red';
+    return `<div class="backend-item">
+      <div class="backend-header">
+        <div>
+          <div class="backend-name">${b.name}</div>
+          <div class="backend-addr">${b.addr}</div>
+        </div>
+        <span class="badge ${cls}">${b.status.toUpperCase()}</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill ${fcls}" style="width:${b.load}%"></div></div>
+      <div class="backend-metrics">
+        <span class="bm">Load: <strong>${b.load}%</strong></span>
+        <span class="bm">Lat: <strong>${b.lat>0?b.lat+'ms':'—'}</strong></span>
+        <span class="bm">Conn: <strong>${b.conns}</strong></span>
+      </div>
+    </div>`;
+  }).join('');
+
+  const topo = document.getElementById('topo-backends');
+  topo.innerHTML = backends.slice(0,3).map((b,i)=>{
+    const y     = 50 + i*80;
+    const col   = b.status==='down'?'var(--muted)':b.load>70?'var(--amber)':'var(--green)';
+    const bgcol = b.status==='down'?'var(--surface2)':b.load>70?'var(--amber-bg)':'var(--green-bg)';
+    const stk   = b.status==='down'?'var(--border2)':b.load>70?'var(--amber)':'var(--green)';
+    const by    = y+20;
+    return `<rect x="330" y="${y}" width="120" height="40" rx="5" fill="${bgcol}" stroke="${stk}" stroke-width="0.5"/>
+      <text x="390" y="${y+15}" text-anchor="middle" font-family="IBM Plex Mono" font-size="8" fill="${col}" font-weight="500">${b.name}</text>
+      <text x="390" y="${y+28}" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="${col}" font-weight="600">${b.load>0?b.load+'% load':'DOWN'}</text>
+      <line x1="240" y1="140" x2="330" y2="${by}" stroke="${stk}" stroke-width="0.8" marker-end="url(#arr)" opacity="0.5"/>`;
+  }).join('');
+}
+
+function renderHeaders(){
+  document.getElementById('headers-list').innerHTML = headers.map(h=>
+    `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:0.5px solid var(--border)">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${h.key}</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--hint)">${h.val}</span>
+    </div>`
+  ).join('');
+}
+
+function toggleBtn(btn){ btn.classList.toggle('on'); btn.classList.toggle('off'); }
+
+function setAlgo(btn, name){
+  document.querySelectorAll('.algo-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('algo-label').textContent = name;
+  document.getElementById('topo-algo').textContent  = name.toUpperCase();
+}
+
+function addRoute(){
+  const pool = [
+    {name:'cache-proxy', path:'/cache/*',   method:'GET',  rps:55,  lat:6,  status:'healthy'},
+    {name:'ws-gateway',  path:'/ws/*',      method:'GET',  rps:120, lat:3,  status:'healthy'},
+    {name:'grpc-relay',  path:'/grpc/*',    method:'POST', rps:88,  lat:18, status:'healthy'},
+    {name:'metrics-svc', path:'/metrics',   method:'GET',  rps:10,  lat:4,  status:'healthy'},
+  ];
+  routes.push(pool[routes.length % pool.length]);
+  renderRoutes();
+}
+
+function addBackend(){
+  const n = backends.length + 1;
+  backends.push({ name:'backend-0'+n, addr:'10.0.1.1'+n+':8080', load:0, lat:0, conns:0, status:'up', weight:1 });
+  renderBackends();
+}
+
+function randomLog(){
+  const i  = Math.floor(Math.random()*logPaths.length);
+  const s  = logStatuses[Math.floor(Math.random()*logStatuses.length)];
+  const ms = Math.floor(Math.random()*80)+5;
+  const d  = new Date();
+  return { time:pad2(d.getHours())+':'+pad2(d.getMinutes())+':'+pad2(d.getSeconds()), method:logMethods[i], path:logPaths[i], status:s, ms };
+}
+
+function renderLogs(){
+  document.getElementById('log-list').innerHTML = logEntries.slice(-14).reverse().map(l=>{
+    const mcls = l.method==='GET'?'method-get':l.method==='POST'?'method-post':l.method==='PUT'?'method-put':'method-del';
+    const scls = l.status<300?'s200':l.status<400?'s304':l.status===429?'s429':'s500';
+    return `<div class="log-entry">
+      <span class="log-time">${l.time}</span>
+      <span><span class="method-tag ${mcls}">${l.method}</span></span>
+      <span class="log-path">${l.path}</span>
+      <span class="${scls}">${l.status}</span>
+      <span style="color:var(--hint);font-family:var(--mono);font-size:10px">${l.ms}ms</span>
+    </div>`;
+  }).join('');
+}
+
+function fluctuate(){
+  const rps  = 1180 + Math.floor(Math.random()*150);
+  const err  = (0.2 + Math.random()*0.3).toFixed(2);
+  const lat  = 14   + Math.floor(Math.random()*10);
+  const conn = 3600 + Math.floor(Math.random()*400);
+  document.getElementById('m-rps').textContent   = rps.toLocaleString();
+  document.getElementById('m-err').textContent   = err+'%';
+  document.getElementById('m-lat').textContent   = lat+'ms';
+  document.getElementById('m-conn').textContent  = conn.toLocaleString();
+  document.getElementById('rps-badge').textContent = rps.toLocaleString()+' req/s';
+  document.getElementById('topo-rps').textContent  = rps.toLocaleString()+'/s';
+  backends[0].load = 55+Math.floor(Math.random()*20); backends[0].lat=10+Math.floor(Math.random()*10); backends[0].conns=900+Math.floor(Math.random()*200);
+  backends[1].load = 70+Math.floor(Math.random()*15); backends[1].lat=18+Math.floor(Math.random()*12); backends[1].conns=1100+Math.floor(Math.random()*250);
+  backends[2].load = 25+Math.floor(Math.random()*20); backends[2].lat=8+Math.floor(Math.random()*8);   backends[2].conns=400+Math.floor(Math.random()*200);
+  renderBackends();
+  logEntries.push(randomLog());
+  renderLogs();
+}
+
+setInterval(fluctuate, 1800);
+
+renderRoutes();
+renderBackends();
+renderHeaders();
+for(let i=0;i<8;i++) logEntries.push(randomLog());
+renderLogs();
+</script>
+</body>
+</html>
